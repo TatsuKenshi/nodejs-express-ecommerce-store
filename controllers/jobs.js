@@ -11,6 +11,8 @@ const getAllJobs = async (req, res) => {
 
   if (search) {
     queryObject.position = { $regex: search, $options: "i" };
+  } else {
+    console.log("There are no search params");
   }
 
   let result = Job.find(queryObject);
