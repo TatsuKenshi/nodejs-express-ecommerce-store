@@ -9,17 +9,52 @@ const getAllJobs = async (req, res) => {
     createdBy: req.user.userId,
   };
 
+  // filtering conditions
   if (search) {
     queryObject.position = { $regex: search, $options: "i" };
-  } else {
-    console.log("There are no search params");
+  }
+
+  if (status && status !== "all") {
+    queryObject.status = status;
+  }
+
+  if (jobType && jobType !== "all") {
+    queryObject.jobType = jobType;
   }
 
   let result = Job.find(queryObject);
 
+  // sorting
+  if (sort === "latest") {
+    result = result.sort("-createdAt");
+  }
+
+  if (sort === "oldest") {
+    result = result.sort("createdAt");
+  }
+
+  if (sort === "a-z") {
+    result = result.sort("position");
+  }
+
+  if (sort === "z-a") {
+    result = result.sort("-position");
+  }
+
+  // pagination
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = Number(page - 1) * limit;
+
+  result = result.skip(skip).limit(limit);
+
+  const totalJobs = await Job.countDocuments(queryObject);
+  const numOfPages = Math.ceil(totalJobs / limit);
+
   const jobs = await result;
-  res.status(StatusCodes.OK).json({ jobs });
+  res.status(StatusCodes.OK).json({ jobs, totalJobs, numOfPages });
 };
+
 const getJob = async (req, res) => {
   const {
     user: { userId },
@@ -30,9 +65,11 @@ const getJob = async (req, res) => {
     _id: jobId,
     createdBy: userId,
   });
+
   if (!job) {
     throw new NotFoundError(`No job with id ${jobId}`);
   }
+
   res.status(StatusCodes.OK).json({ job });
 };
 
@@ -52,14 +89,17 @@ const updateJob = async (req, res) => {
   if (company === "" || position === "") {
     throw new BadRequestError("Company or Position fields cannot be empty");
   }
+
   const job = await Job.findByIdAndUpdate(
     { _id: jobId, createdBy: userId },
     req.body,
     { new: true, runValidators: true }
   );
+
   if (!job) {
     throw new NotFoundError(`No job with id ${jobId}`);
   }
+
   res.status(StatusCodes.OK).json({ job });
 };
 
@@ -73,9 +113,11 @@ const deleteJob = async (req, res) => {
     _id: jobId,
     createdBy: userId,
   });
+
   if (!job) {
     throw new NotFoundError(`No job with id ${jobId}`);
   }
+
   res.status(StatusCodes.OK).send();
 };
 
